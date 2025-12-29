@@ -1,0 +1,70 @@
+pipeline {
+  agent any
+
+  environment {
+    REGISTRY = "docker.io/yourname"
+    BACKEND_IMG = "${REGISTRY}/flask-backend"
+    FRONTEND_IMG = "${REGISTRY}/flask-frontend"
+  }
+
+  stages {
+
+    stage("Checkout") {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage("Build Images") {
+      steps {
+        sh """
+        docker build -t $BACKEND_IMG:${BUILD_NUMBER} backend
+        docker build -t $FRONTEND_IMG:${BUILD_NUMBER} frontend
+        """
+      }
+    }
+
+    stage("Unit Tests") {
+      steps {
+        sh "docker run --rm $BACKEND_IMG:${BUILD_NUMBER} python -m py_compile app.py"
+      }
+    }
+
+    stage("Security Scan") {
+      steps {
+        sh "trivy image $BACKEND_IMG:${BUILD_NUMBER}"
+      }
+    }
+
+    stage("Push Images") {
+      steps {
+        withCredentials([usernamePassword(
+          credentialsId: 'dockerhub',
+          usernameVariable: 'USER',
+          passwordVariable: 'PASS'
+        )]) {
+          sh """
+          docker login -u $USER -p $PASS
+          docker push $BACKEND_IMG:${BUILD_NUMBER}
+          docker push $FRONTEND_IMG:${BUILD_NUMBER}
+          """
+        }
+      }
+    }
+
+    stage("Deploy to Production") {
+      input {
+        message "Approve Production Deployment?"
+      }
+      steps {
+        sh "bash scripts/deploy.sh ${BUILD_NUMBER}"
+      }
+    }
+  }
+
+  post {
+    failure {
+      sh "bash scripts/rollback.sh"
+    }
+  }  
+}
