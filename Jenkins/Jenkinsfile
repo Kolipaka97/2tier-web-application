@@ -2,7 +2,7 @@ pipeline {
   agent any
 
   environment {
-    REGISTRY = "docker.io/yourname"
+    REGISTRY = "docker.io/madhudocker03"
     BACKEND_IMG = "${REGISTRY}/flask-backend"
     FRONTEND_IMG = "${REGISTRY}/flask-frontend"
   }
